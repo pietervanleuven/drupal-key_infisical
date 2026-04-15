@@ -1,0 +1,7 @@
+name: Infisical
+type: module
+description: 'Provides integration between Infisical and the Key module for secrets management.'
+core_version_requirement: '^10 || ^11'
+package: Security
+dependencies:
+  - key:key

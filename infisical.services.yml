@@ -1,0 +1,4 @@
+services:
+  infisical.client:
+    class: Drupal\infisical\InfisicalClient
+    arguments: ['@http_client', '@logger.factory']
