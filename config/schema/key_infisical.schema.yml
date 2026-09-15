@@ -1,0 +1,27 @@
+# Schema for the configuration files of the Key Infisical module.
+
+key.provider.infisical:
+  type: mapping
+  label: 'Infisical key provider settings'
+  mapping:
+    base_url:
+      type: uri
+      label: 'Infisical URL'
+    client_id:
+      type: string
+      label: 'Client ID'
+    client_secret:
+      type: string
+      label: 'Client secret'
+    project_id:
+      type: string
+      label: 'Project ID'
+    environment:
+      type: string
+      label: 'Environment'
+    secret_path:
+      type: string
+      label: 'Secret path'
+    secret_name:
+      type: string
+      label: 'Secret name'

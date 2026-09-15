@@ -1,9 +1,29 @@
 {
-    "name": "drupal/infisical",
+    "name": "drupal/key_infisical",
     "description": "Provides integration between Infisical and the Key module for secrets management.",
     "type": "drupal-module",
     "license": "GPL-2.0-or-later",
+    "homepage": "https://www.drupal.org/project/key_infisical",
+    "support": {
+        "issues": "https://www.drupal.org/project/issues/key_infisical",
+        "source": "https://git.drupalcode.org/project/key_infisical"
+    },
+    "repositories": [
+        {
+            "type": "composer",
+            "url": "https://packages.drupal.org/8"
+        }
+    ],
     "require": {
         "drupal/key": "^1.0 || ^2.0"
+    },
+    "require-dev": {
+        "drupal/coder": "^8.3",
+        "mglaman/phpstan-drupal": "^2",
+        "phpstan/extension-installer": "^1"
+    },
+    "scripts": {
+        "lint": "phpcs",
+        "lint:fix": "phpcbf"
     }
 }

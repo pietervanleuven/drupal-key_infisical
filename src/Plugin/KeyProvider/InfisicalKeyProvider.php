@@ -1,12 +1,14 @@
 <?php
 
-namespace Drupal\infisical\Plugin\KeyProvider;
+namespace Drupal\key_infisical\Plugin\KeyProvider;
 
 use Drupal\Core\Form\FormStateInterface;
-use Drupal\infisical\InfisicalClient;
+use Drupal\Core\Logger\LoggerChannelFactoryInterface;
 use Drupal\key\KeyInterface;
 use Drupal\key\Plugin\KeyPluginFormInterface;
 use Drupal\key\Plugin\KeyProviderBase;
+use Drupal\key_infisical\InfisicalClient;
+use Psr\Log\LoggerInterface;
 use Symfony\Component\DependencyInjection\ContainerInterface;
 
 /**
@@ -29,15 +31,25 @@ class InfisicalKeyProvider extends KeyProviderBase implements KeyPluginFormInter
 
   /**
    * The Infisical client.
+   *
+   * @var \Drupal\key_infisical\InfisicalClient
    */
   protected InfisicalClient $infisicalClient;
 
   /**
+   * The logger channel for this module.
+   *
+   * @var \Psr\Log\LoggerInterface
+   */
+  protected LoggerInterface $logger;
+
+  /**
    * {@inheritdoc}
    */
-  public function __construct(array $configuration, $plugin_id, $plugin_definition, InfisicalClient $infisicalClient) {
+  public function __construct(array $configuration, $plugin_id, $plugin_definition, InfisicalClient $infisicalClient, LoggerChannelFactoryInterface $loggerFactory) {
     parent::__construct($configuration, $plugin_id, $plugin_definition);
     $this->infisicalClient = $infisicalClient;
+    $this->logger = $loggerFactory->get('key_infisical');
   }
 
   /**
@@ -48,7 +60,8 @@ class InfisicalKeyProvider extends KeyProviderBase implements KeyPluginFormInter
       $configuration,
       $plugin_id,
       $plugin_definition,
-      $container->get('infisical.client'),
+      $container->get('key_infisical.client'),
+      $container->get('logger.factory'),
     );
   }
 
@@ -90,11 +103,10 @@ class InfisicalKeyProvider extends KeyProviderBase implements KeyPluginFormInter
     ];
 
     $form['client_secret'] = [
-      '#type' => 'textfield',
+      '#type' => 'password',
       '#title' => $this->t('Client Secret'),
-      '#description' => $this->t('The Universal Auth machine identity client secret.'),
-      '#default_value' => $config['client_secret'],
-      '#required' => TRUE,
+      '#description' => $this->t('The Universal Auth machine identity client secret. This value is stored in Drupal configuration. Leave this field blank to keep the currently stored secret. The secret can be overridden per-environment in settings.php.'),
+      '#required' => empty($config['client_secret']),
     ];
 
     $form['project_id'] = [
@@ -139,6 +151,17 @@ class InfisicalKeyProvider extends KeyProviderBase implements KeyPluginFormInter
     // Strip trailing slash from base URL.
     $baseUrl = rtrim($form_state->getValue('base_url'), '/');
     $form_state->setValue('base_url', $baseUrl);
+
+    // If the client secret was left blank, restore the previously stored
+    // value. This must happen here (rather than only in
+    // submitConfigurationForm()) because KeyFormBase::validateForm()
+    // performs a live fetch of the key value immediately after calling this
+    // method, using the values from this form state. Leaving the secret
+    // empty at that point would cause the live fetch to fail on every
+    // subsequent edit of the key.
+    if (empty($form_state->getValue('client_secret'))) {
+      $form_state->setValue('client_secret', $this->getConfiguration()['client_secret']);
+    }
   }
 
   /**
@@ -150,19 +173,33 @@ class InfisicalKeyProvider extends KeyProviderBase implements KeyPluginFormInter
 
   /**
    * {@inheritdoc}
+   *
+   * Never throws: a Key's value is read in many contexts, including while
+   * rendering a form that merely references the key, so an exception here
+   * would surface as a fatal error rather than a missing secret. Any
+   * failure, anticipated or not, degrades to NULL instead.
    */
   public function getKeyValue(KeyInterface $key) {
-    $config = $this->getConfiguration();
+    try {
+      $config = $this->getConfiguration();
 
-    return $this->infisicalClient->getSecret(
-      $config['base_url'],
-      $config['client_id'],
-      $config['client_secret'],
-      $config['project_id'],
-      $config['environment'],
-      $config['secret_path'],
-      $config['secret_name'],
-    );
+      return $this->infisicalClient->getSecret(
+        $config['base_url'],
+        $config['client_id'],
+        $config['client_secret'],
+        $config['project_id'],
+        $config['environment'],
+        $config['secret_path'],
+        $config['secret_name'],
+      );
+    }
+    catch (\Throwable $e) {
+      $this->logger->error('Unexpected error resolving Infisical secret for key "@key": @message', [
+        '@key' => $key->id(),
+        '@message' => $e->getMessage(),
+      ]);
+      return NULL;
+    }
   }
 
 }
